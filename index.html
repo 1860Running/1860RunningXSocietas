@@ -86,6 +86,14 @@ figure{margin:0;min-width:0}
 figure button{all:unset;cursor:zoom-in;display:block;width:100%;border-radius:8px;overflow:hidden;background:#fff}
 figure button:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
 figure img{display:block;width:100%;height:auto;aspect-ratio:760/851}
+/* whole option card is the click target; zooming moves to a small magnifier on each image */
+.pickable{cursor:pointer}
+.pickable figure{position:relative}
+.pickable .ph{border-radius:8px;overflow:hidden;background:#fff}
+.zoom{all:unset;box-sizing:border-box;position:absolute;top:6px;right:6px;width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.92);box-shadow:0 0 0 1px rgba(20,36,27,.2);color:#14241b;display:flex;align-items:center;justify-content:center;cursor:zoom-in}
+.zoom:hover{background:#fff;box-shadow:0 0 0 1px rgba(20,36,27,.45)}
+.zoom:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.zoom svg{width:16px;height:16px}
 figcaption{font-size:12px;color:var(--muted);text-align:center;margin-top:3px;letter-spacing:.08em;text-transform:uppercase}
 .sub{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);font-family:var(--font-display);margin-top:2px}
 .pick{font:inherit;font-family:var(--font-display);font-weight:700;font-size:18px;letter-spacing:.12em;text-transform:uppercase;
@@ -126,7 +134,7 @@ footer a{color:inherit}
   <header>
     <div class="eyebrow">Trikot-Duell · Laufshirt</div>
     <h1>1860 Running X Societas</h1>
-    <p class="lede" id="lede">Du bekommst immer zwei oder drei Shirts, die sich nur in einer Sache unterscheiden. Tipp auf dein Lieblingsshirt. Tipp auf ein Bild, um es groß zu sehen.</p>
+    <p class="lede" id="lede">Du bekommst immer zwei oder drei Shirts, die sich nur in einer Sache unterscheiden. Tipp auf dein Lieblingsshirt. Mit der Lupe siehst du es groß.</p>
     <div class="progress" id="progress"></div>
   </header>
   <main id="app"></main>
@@ -179,20 +187,26 @@ const shuffle = arr => { const a = arr.slice(); for (let i=a.length-1;i>0;i--){c
 const app = document.getElementById('app');
 const el = (tag, attrs={}, ...kids) => { const n=document.createElement(tag); for (const [k,v] of Object.entries(attrs)) { if (k==='class') n.className=v; else if (k==='text') n.textContent=v; else if (k.startsWith('on')) n.addEventListener(k.slice(2),v); else n.setAttribute(k,v);} for (const k of kids) if (k) n.append(k); return n; };
 
-function fig(src, cap, showCap=true){
+function fig(src, cap, showCap=true, pick=false){
+  if (pick){   // inside a clickable option card: the image itself selects, the magnifier zooms
+    const z = el('button',{type:'button',class:'zoom','aria-label':'Groß anzeigen: '+cap,title:'Groß anzeigen',
+      onclick:e=>{ e.stopPropagation(); openLb(src,cap); }});
+    z.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>';
+    return el('figure',{}, el('div',{class:'ph'}, el('img',{src, alt:cap, loading:'lazy'})), z, showCap ? el('figcaption',{text:cap}) : null);
+  }
   const b = el('button',{type:'button','aria-label':'Groß anzeigen: '+cap, onclick:()=>openLb(src,cap)}, el('img',{src, alt:cap, loading:'lazy'}));
   return el('figure',{}, b, showCap ? el('figcaption',{text:cap}) : null);
 }
 // one white tile: front above back (or a single image), label underneath
-function tile(label, srcs){
+function tile(label, srcs, pick=false){
   const t = el('div',{class:'tile'});
-  srcs.forEach(([src,cap])=>t.append(fig(src,cap,false)));
+  srcs.forEach(([src,cap])=>t.append(fig(src,cap,false,pick)));
   if (label) t.append(el('div',{class:'lbl',text:label}));
   return t;
 }
-function tiles(list){
+function tiles(list, pick=false){
   const g = el('div',{class:'tiles',style:'--n:'+list.length});
-  list.forEach(x=>g.append(tile(x.label, x.srcs)));
+  list.forEach(x=>g.append(tile(x.label, x.srcs, pick)));
   return g;
 }
 function openLb(src,cap){ const lb=document.getElementById('lb'); const im=document.getElementById('lbImg'); im.src=src; im.alt=cap; lb.hidden=false; document.getElementById('lbClose').focus(); }
@@ -208,12 +222,13 @@ function progress(){
 }
 
 function optionCard(letter, title, tileList, onPick, sub){
-  const grid = tiles(tileList);
-  return el('article',{class:'opt'},
+  const grid = tiles(tileList, true);
+  // the whole card picks; the button stays as the visible (and keyboard) target and bubbles up here
+  return el('article',{class:'opt pickable',onclick:()=>onPick()},
     el('h3',{}, el('span',{class:'tag',text:letter}), document.createTextNode(title)),
     sub ? el('div',{class:'sub',text:sub}) : null,
     grid,
-    el('button',{class:'pick',type:'button',onclick:onPick},'Das nehm ich'));
+    el('button',{class:'pick',type:'button'},'Das nehm ich'));
 }
 
 function stepView(){
@@ -397,7 +412,7 @@ function tallyView(){
 }
 
 function render(){
-  document.getElementById('lede').textContent='Du bekommst immer zwei oder drei Shirts, die sich nur in einer Sache unterscheiden. Tipp auf dein Lieblingsshirt. Tipp auf ein Bild, um es groß zu sehen.';
+  document.getElementById('lede').textContent='Du bekommst immer zwei oder drei Shirts, die sich nur in einer Sache unterscheiden. Tipp auf dein Lieblingsshirt. Mit der Lupe siehst du es groß.';
   if (location.hash==='#auswertung') return tallyView();
   if (state.step>=4) return resultView();
   stepView();
